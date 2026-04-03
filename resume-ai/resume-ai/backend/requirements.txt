@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-dotenv
+requests
+pinecone-client
+pdfplumber
+reportlab
+pydantic
+python-multipart
