@@ -53,8 +53,16 @@ export const logoutUser = async () => {
   return await api.post("/auth/logout");
 };
 
-export const fetchGithub = async (username) => {
-  return await api.post("/github/github", { username }, { timeout: 25000 });
+export const fetchGithub = async (username, jobDescription = "", maxProjects = 4) => {
+  return await api.post(
+    "/github/github",
+    {
+      username,
+      job_description: jobDescription,
+      max_projects: maxProjects,
+    },
+    { timeout: 25000 }
+  );
 };
 
 export const parseResumeFile = async (file) => {

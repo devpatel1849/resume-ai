@@ -6,4 +6,8 @@ router = APIRouter()
 
 @router.post("/github")
 def fetch_github(data: GitHubRequest):
-    return github_service.get_repos(data.username)
+    return github_service.get_repos(
+        data.username,
+        data.job_description,
+        data.max_projects,
+    )

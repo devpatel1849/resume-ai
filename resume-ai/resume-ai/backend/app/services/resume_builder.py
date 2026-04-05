@@ -1,7 +1,63 @@
+import re
+
 from app.services.llm_service import llm_service
 
 
 class ResumeBuilder:
+    _SECTION_ALIASES = {
+        "summary": "Professional Summary",
+        "professional summary": "Professional Summary",
+        "core skills": "Core Skills",
+        "skills": "Core Skills",
+        "technical skills": "Core Skills",
+        "experience": "Experience",
+        "work experience": "Experience",
+        "projects": "Projects",
+        "education": "Education",
+        "certifications": "Certifications",
+    }
+
+    def _normalize_heading_key(self, value: str) -> str:
+        return re.sub(r"\s+", " ", value.strip().strip(":").strip("-").lower())
+
+    def _sanitize_model_output(self, content: str) -> str:
+        if not content or content.startswith("Error:"):
+            return content
+
+        cleaned_lines: list[str] = []
+        for raw_line in content.splitlines():
+            line = raw_line.strip()
+            if not line:
+                if cleaned_lines and cleaned_lines[-1] != "":
+                    cleaned_lines.append("")
+                continue
+
+            if set(line) <= {"-", "_", "="}:
+                continue
+
+            line = re.sub(r"^#{1,6}\s*", "", line)
+            line = line.replace("**", "").replace("__", "").replace("`", "")
+            line = re.sub(r"^[>\"'\s]+", "", line)
+            line = re.sub(r"[\"'\s]+$", "", line)
+
+            key = self._normalize_heading_key(line)
+            if key in self._SECTION_ALIASES:
+                normalized_heading = self._SECTION_ALIASES[key]
+                if cleaned_lines and cleaned_lines[-1] != "":
+                    cleaned_lines.append("")
+                cleaned_lines.append(normalized_heading)
+                continue
+
+            if line.startswith(("•", "*", "- ")):
+                line = f"- {line.lstrip('•*- ').strip()}"
+
+            cleaned_lines.append(line)
+
+        while cleaned_lines and cleaned_lines[-1] == "":
+            cleaned_lines.pop()
+
+        return "\n".join(cleaned_lines)
+
     def build_resume(
         self,
         data: str,
@@ -24,6 +80,9 @@ class ResumeBuilder:
             ),
             "Technical Deep": (
                 "Emphasize technologies, architecture, implementation detail, and engineering outcomes."
+            ),
+            "Classic Serif": (
+                "Use a timeless, formal style with polished language, balanced section depth, and readable accomplishment bullets."
             ),
         }
         chosen_template = template if template in template_guidelines else "ATS Professional"
@@ -55,8 +114,16 @@ class ResumeBuilder:
         - Include ATS-friendly keywords naturally
         - Avoid fake experience, tools, or metrics
         - Keep section ordering aligned to the selected resume pattern
+        - Return plain text only (no markdown)
+        - Do not use **, *, #, backticks, quotes, or code blocks
+        - Use simple headings with this style: Professional Summary
+        - Use bullet points with '- ' only
+        - Keep the content clean and publication-ready
 
         Format:
+        - Candidate Name
+        - Target Role
+        - Contact Line (email | phone | location | LinkedIn/GitHub if available)
         - Professional Summary
         - Core Skills
         - Experience (with bullet points)
@@ -65,7 +132,8 @@ class ResumeBuilder:
         - Certifications (if available)
         """
 
-        return llm_service.generate_response(prompt)
+        response = llm_service.generate_response(prompt)
+        return self._sanitize_model_output(response)
 
 
 resume_builder = ResumeBuilder()

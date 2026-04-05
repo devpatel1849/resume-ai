@@ -1,10 +1,18 @@
 import requests
+import re
 from urllib.parse import urlparse
 
 from app.config import settings
 
 
 class GitHubService:
+    _STOPWORDS = {
+        "the", "and", "for", "with", "that", "this", "from", "into", "your", "you", "our", "are",
+        "was", "were", "will", "can", "able", "role", "team", "work", "using", "use", "used", "have",
+        "has", "had", "job", "description", "years", "year", "experience", "responsible", "build", "built",
+        "develop", "developed", "developer", "engineer", "strong", "good", "skills", "skill", "etc", "about",
+    }
+
     def _normalize_username(self, username: str) -> str:
         raw = (username or "").strip()
         if not raw:
@@ -28,7 +36,98 @@ class GitHubService:
         except requests.RequestException:
             return None
 
-    def get_repos(self, username: str):
+    def _tokenize(self, text: str) -> set[str]:
+        if not text:
+            return set()
+
+        tokens = re.findall(r"[a-zA-Z0-9+#.]+", text.lower())
+        cleaned = {
+            token
+            for token in tokens
+            if len(token) > 2 and token not in self._STOPWORDS and not token.isdigit()
+        }
+        return cleaned
+
+    def _has_meaningful_description(self, description: str | None) -> bool:
+        if not description:
+            return False
+
+        normalized = re.sub(r"\s+", " ", description.strip()).lower()
+        if not normalized:
+            return False
+
+        banned = {
+            "no description",
+            "no description provided",
+            "n/a",
+            "na",
+            "none",
+        }
+        return normalized not in banned
+
+    def _score_repo(self, repo: dict, jd_tokens: set[str]) -> int:
+        haystack = " ".join([
+            repo.get("name") or "",
+            repo.get("description") or "",
+            repo.get("language") or "",
+        ])
+        repo_tokens = self._tokenize(haystack)
+        overlap = len(repo_tokens & jd_tokens)
+
+        score = overlap
+        language = (repo.get("language") or "").lower()
+        if language and language in jd_tokens:
+            score += 2
+
+        name = (repo.get("name") or "").lower()
+        if any(token in name for token in jd_tokens):
+            score += 1
+
+        return score
+
+    def _select_relevant_repos(self, repos: list[dict], job_description: str | None, max_projects: int) -> list[dict]:
+        if not repos:
+            return []
+
+        max_projects = max(3, min(max_projects or 4, 4))
+        target_count = min(max_projects, len(repos))
+        min_count = min(3, len(repos), target_count)
+
+        jd_tokens = self._tokenize(job_description or "")
+        if not jd_tokens:
+            sorted_fallback = sorted(
+                repos,
+                key=lambda repo: (repo.get("stars", 0), repo.get("updated_at") or ""),
+                reverse=True,
+            )
+            return sorted_fallback[:target_count]
+
+        scored = []
+        for repo in repos:
+            score = self._score_repo(repo, jd_tokens)
+            scored.append((score, repo))
+
+        scored.sort(
+            key=lambda item: (
+                item[0],
+                item[1].get("stars", 0),
+                item[1].get("updated_at") or "",
+            ),
+            reverse=True,
+        )
+
+        selected = [repo for score, repo in scored if score > 0][:target_count]
+        if len(selected) < min_count:
+            for _, repo in scored:
+                if repo in selected:
+                    continue
+                selected.append(repo)
+                if len(selected) >= min_count:
+                    break
+
+        return selected[:target_count]
+
+    def get_repos(self, username: str, job_description: str | None = None, max_projects: int = 4):
         normalized = self._normalize_username(username)
         if not normalized:
             return []
@@ -63,10 +162,24 @@ class GitHubService:
             extracted.append({
                 "name": repo["name"],
                 "description": repo["description"],
-                "language": repo["language"]
+                "language": repo["language"],
+                "stars": repo.get("stargazers_count", 0),
+                "updated_at": repo.get("updated_at"),
             })
 
-        return extracted
+        extracted = [repo for repo in extracted if self._has_meaningful_description(repo.get("description"))]
+        if not extracted:
+            return []
+
+        selected = self._select_relevant_repos(extracted, job_description, max_projects)
+        return [
+            {
+                "name": repo["name"],
+                "description": repo["description"],
+                "language": repo["language"],
+            }
+            for repo in selected
+        ]
 
 
 github_service = GitHubService()

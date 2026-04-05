@@ -20,7 +20,14 @@ class LLMService:
             payload = {
                 "model": "openrouter/free",
                 "messages": [
-                    {"role": "system", "content": "You are a professional resume writer."},
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a professional resume writer. "
+                            "Always return clean plain text resume content only. "
+                            "Do not use markdown, asterisks, code fences, or quoted wrappers."
+                        ),
+                    },
                     {"role": "user", "content": prompt}
                 ]
             }

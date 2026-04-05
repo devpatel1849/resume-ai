@@ -2,6 +2,8 @@ from pydantic import BaseModel
 
 class GitHubRequest(BaseModel):
     username: str
+    job_description: str | None = None
+    max_projects: int = 4
 
 class ResumeRequest(BaseModel):
     text: str

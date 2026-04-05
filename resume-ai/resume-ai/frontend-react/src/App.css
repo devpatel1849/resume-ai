@@ -226,6 +226,45 @@
   color: #134a69;
 }
 
+.template-picker {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+}
+
+.template-option {
+  border: 1px solid #c7dae7;
+  border-radius: 0.7rem;
+  background: linear-gradient(180deg, #ffffff, #f7fbff);
+  text-align: left;
+  padding: 0.65rem 0.7rem;
+  cursor: pointer;
+  display: grid;
+  gap: 0.22rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.14s ease;
+}
+
+.template-option strong {
+  font-size: 0.9rem;
+  color: #143d5a;
+}
+
+.template-option span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.template-option:hover {
+  border-color: #89b9d2;
+  transform: translateY(-1px);
+}
+
+.template-option.active {
+  border-color: #207b98;
+  box-shadow: 0 0 0 4px rgba(31, 126, 151, 0.15);
+  background: linear-gradient(180deg, #f2fbff, #e9f6fd);
+}
+
 .actions-row {
   display: flex;
   align-items: center;

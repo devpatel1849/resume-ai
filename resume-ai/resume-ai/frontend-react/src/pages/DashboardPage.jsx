@@ -29,10 +29,26 @@ function DashboardPage() {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const resumePatterns = [
-    "ATS Professional",
-    "Modern Impact",
-    "Executive Brief",
-    "Technical Deep",
+    {
+      name: "ATS Professional",
+      description: "Best for applicant tracking systems and corporate hiring workflows.",
+    },
+    {
+      name: "Modern Impact",
+      description: "Achievement-first flow with concise, high-energy highlights.",
+    },
+    {
+      name: "Executive Brief",
+      description: "Leadership-forward style for manager and senior positions.",
+    },
+    {
+      name: "Technical Deep",
+      description: "Technical detail and delivery outcomes for engineering roles.",
+    },
+    {
+      name: "Classic Serif",
+      description: "Traditional formal look with balanced content density.",
+    },
   ];
 
   const generationLocked = isGenerating || isUploadingResume;
@@ -70,13 +86,18 @@ function DashboardPage() {
   }, [text, oldResumeText, jobDescription]);
 
   const buildGithubSection = (repoList) => {
-    if (!repoList.length) {
-      return `${githubSectionStart}\nGitHub Projects: none found for this user.\n${githubSectionEnd}`;
+    const describedRepos = repoList.filter((repo) => {
+      const description = (repo?.description || "").trim().toLowerCase();
+      return Boolean(description) && !["no description", "no description provided", "n/a", "na", "none"].includes(description);
+    });
+
+    if (!describedRepos.length) {
+      return `${githubSectionStart}\nGitHub Projects: no repositories with valid descriptions found.\n${githubSectionEnd}`;
     }
 
-    const lines = repoList.map((repo, index) => {
+    const lines = describedRepos.map((repo, index) => {
       const name = repo.name || "Untitled";
-      const description = repo.description || "No description";
+      const description = repo.description;
       const language = repo.language || "Unknown";
       return `${index + 1}. ${name} | ${language}\n   ${description}`;
     });
@@ -113,7 +134,7 @@ function DashboardPage() {
     setError("");
     setIsFetchingGithub(true);
     try {
-      const res = await fetchGithub(normalizedUsername);
+      const res = await fetchGithub(normalizedUsername, jobDescription, 4);
       const repoList = Array.isArray(res.data) ? res.data : [];
       const githubSection = buildGithubSection(repoList);
       setRepos(repoList);
@@ -312,19 +333,25 @@ function DashboardPage() {
               placeholder="Paste the target job description to tailor the generated resume."
             />
 
-            <label className="field-label" htmlFor="resumePattern">Resume Pattern</label>
-            <select
-              id="resumePattern"
-              className="text-input"
-              value={selectedTemplate}
-              onChange={(event) => setSelectedTemplate(event.target.value)}
-            >
-              {resumePatterns.map((pattern) => (
-                <option key={pattern} value={pattern}>
-                  {pattern}
-                </option>
-              ))}
-            </select>
+            <label className="field-label">Choose Resume Template</label>
+            <div className="template-picker" role="radiogroup" aria-label="Resume template options">
+              {resumePatterns.map((pattern) => {
+                const isSelected = selectedTemplate === pattern.name;
+                return (
+                  <button
+                    key={pattern.name}
+                    type="button"
+                    className={`template-option ${isSelected ? "active" : ""}`}
+                    onClick={() => setSelectedTemplate(pattern.name)}
+                    role="radio"
+                    aria-checked={isSelected}
+                  >
+                    <strong>{pattern.name}</strong>
+                    <span>{pattern.description}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="actions-row">
@@ -343,7 +370,7 @@ function DashboardPage() {
             <p className="helper-text">
               {isUploadingResume
                 ? "Parsing your uploaded resume..."
-                : `Pattern: ${selectedTemplate}. Top tech stack: ${topLanguages || "Add projects to detect language trends"}`}
+                : `Pattern: ${selectedTemplate}. Top tech stack: ${topLanguages || "Add projects to detect language trends"}. GitHub import keeps only 3-4 job-relevant projects.`}
             </p>
           </div>
         </article>
